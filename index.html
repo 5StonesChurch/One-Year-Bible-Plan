@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>One-Year Bible — Daily Reading (ESV)</title>
+  <style>
+    :root { --accent:#0044cc; --muted:#666; --card:#fff; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin:0; background:#f5f7fb; color:#222; }
+    header { background: linear-gradient(90deg,#fff,#f0f6ff); padding:18px 16px; border-bottom:1px solid #e6ebf5; }
+    .container { max-width:980px; margin:0 auto; padding:18px; }
+    h1 { margin:0; font-size:20px; }
+    .controls { display:flex; gap:8px; align-items:center; margin-top:12px; }
+    button { background:var(--accent); color:white; border:0; padding:8px 12px; border-radius:8px; cursor:pointer; }
+    button.secondary { background:white; color:var(--accent); border:1px solid rgba(0,68,204,0.15); }
+    #dateLabel { margin-left:auto; color:var(--muted); font-size:14px; }
+    .reading-list { display:grid; gap:14px; margin-top:18px; }
+    .passage-card { background:var(--card); padding:14px; border-radius:10px; border:1px solid #e9eef9; box-shadow:0 1px 0 rgba(0,0,0,0.02); }
+    .passage-ref { font-weight:600; color:#0a3b7a; }
+    .passage-text { margin-top:8px; line-height:1.6; white-space:pre-wrap; }
+    .loading { opacity:.7; color:var(--muted); }
+    .meta { color:var(--muted); margin-top:6px; font-size:13px; }
+    footer { margin:36px 0; color:#777; font-size:13px; text-align:center; }
+    @media(min-width:880px){ h1{font-size:24px} }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>Your Church — One-Year Bible (ESV)</h1>
+      <div class="controls">
+        <button id="prevBtn">← Previous</button>
+        <button id="todayBtn" class="secondary">Today</button>
+        <button id="nextBtn">Next →</button>
+        <div id="dateLabel"></div>
+      </div>
+      <div class="meta">Daily readings from the Old Testament, New Testament, Psalms & Proverbs.</div>
+    </div>
+  </header>
+
+  <main class="container">
+    <div id="readings" class="reading-list"></div>
+    <div id="error" style="color:#b00020;margin-top:12px;"></div>
+    <footer>Scripture from the ESV® Bible © Crossway. Used by permission. <br/>Built to embed in Subsplash or any website.</footer>
+  </main>
+
+<script>
+/************************************************************************
+ * CONFIG - Replace with your ESV API key
+ * Get a free key at https://api.esv.org/account/create/
+ ************************************************************************/
+const ESV_API_KEY = "45cb48c6f8ea0234c45ee30060ab23641d2e3db7";
+
+/************************************************************************
+ * One-Year Bible Plan (Classic / Tyndale-style)
+ * Each day includes: Old Testament, New Testament, Psalm, Proverbs
+ * Format: { day: 1..365, passages: [ "Old", "New", "Psalm", "Proverbs" ] }
+ ************************************************************************/
+const plan = [
+/* Day 1 */  { day:1, passages:["Genesis 1:1-2:25","Matthew 1:1-2:12","Psalm 1:1-6","Proverbs 1:1-6"] },
+/* Day 2 */  { day:2, passages:["Genesis 3:1-4:26","Matthew 2:13-3:6","Psalm 2","Proverbs 1:7-9"] },
+/* Day 3 */  { day:3, passages:["Genesis 5:1-7:24","Matthew 3:7-4:11","Psalm 3","Proverbs 1:10-19"] },
+/* Day 4 */  { day:4, passages:["Genesis 8:1-10:32","Matthew 4:12-25","Psalm 4","Proverbs 1:20-23"] },
+/* Day 5 */  { day:5, passages:["Genesis 11:1-13:4","Matthew 5:1-26","Psalm 5","Proverbs 1:24-28"] },
+/* Day 6 */  { day:6, passages:["Genesis 13:5-15:21","Matthew 5:27-48","Psalm 6","Proverbs 1:29-33"] },
+/* Day 7 */  { day:7, passages:["Genesis 16:1-18:15","Matthew 6:1-24","Psalm 7","Proverbs 2:1-5"] },
+/* Day 8 */  { day:8, passages:["Genesis 18:16-19:38","Matthew 6:25-7:14","Psalm 8","Proverbs 2:6-15"] },
+/* Day 9 */  { day:9, passages:["Genesis 20:1-22:24","Matthew 7:15-29","Psalm 9:1-12","Proverbs 2:16-22"] },
+/* Day10 */  { day:10, passages:["Genesis 23:1-24:51","Matthew 8:1-17","Psalm 9:13-20","Proverbs 3:1-6"] },
+/* Day11 */  { day:11, passages:["Genesis 24:52-26:16","Matthew 8:18-34","Psalm 10:1-15","Proverbs 3:7-8"] },
+/* Day12 */  { day:12, passages:["Genesis 26:17-27:46","Matthew 9:1-17","Psalm 11","Proverbs 3:9-10"] },
+/* Day13 */  { day:13, passages:["Genesis 28:1-29:30","Matthew 9:18-38","Psalm 12","Proverbs 3:11-12"] },
+/* Day14 */  { day:14, passages:["Genesis 29:31-31:16","Matthew 10:1-23","Psalm 13","Proverbs 3:13-18"] },
+/* Day15 */  { day:15, passages:["Genesis 31:17-32:32","Matthew 10:24-42","Psalm 14","Proverbs 3:19-20"] },
+/* Day16 */  { day:16, passages:["Genesis 33:1-35:29","Matthew 11","Psalm 15","Proverbs 3:21-35"] },
+/* Day17 */  { day:17, passages:["Genesis 36:1-37:11","Matthew 12:1-21","Psalm 16","Proverbs 4:1-6"] },
+/* Day18 */  { day:18, passages:["Genesis 37:12-38:30","Matthew 12:22-50","Psalm 17","Proverbs 4:7-9"] },
+/* Day19 */  { day:19, passages:["Genesis 39:1-41:16","Matthew 13:1-23","Psalm 18:1-20","Proverbs 4:10-19"] },
+/* Day20 */  { day:20, passages:["Genesis 41:17-43:34","Matthew 13:24-58","Psalm 18:21-50","Proverbs 4:20-27"] },
+/* Day21 */  { day:21, passages:["Genesis 44:1-45:28","Matthew 14:1-21","Psalm 19","Proverbs 5:1-6"] },
+/* Day22 */  { day:22, passages:["Genesis 46:1-47:12","Matthew 14:22-36","Psalm 20","Proverbs 5:7-14"] },
+/* Day23 */  { day:23, passages:["Genesis 47:13-48:22","Matthew 15:1-20","Psalm 21","Proverbs 5:15-23"] },
+/* Day24 */  { day:24, passages:["Genesis 49:1-50:26","Matthew 15:21-39","Psalm 22:1-18","Proverbs 6:1-11"] },
+/* Day25 */  { day:25, passages:["Exodus 1:1-2:25","Matthew 16:1-12","Psalm 22:19-31","Proverbs 6:12-15"] },
+/* Day26 */  { day:26, passages:["Exodus 3:1-4:31","Matthew 16:13-28","Psalm 23","Proverbs 6:16-19"] },
+/* Day27 */  { day:27, passages:["Exodus 5:1-7:13","Matthew 17","Psalm 24","Proverbs 6:20-35"] },
+/* Day28 */  { day:28, passages:["Exodus 7:14-9:35","Matthew 18:1-20","Psalm 25:1-10","Proverbs 7:1-5"] },
+/* Day29 */  { day:29, passages:["Exodus 10:1-12:30","Matthew 18:21-35","Psalm 25:11-22","Proverbs 7:6-23"] },
+/* Day30 */  { day:30, passages:["Exodus 12:31-14:31","Matthew 19","Psalm 26","Proverbs 7:24-27"] },
+/* Day31 */  { day:31, passages:["Exodus 15:1-16:36","Matthew 20","Psalm 27:1-6","Proverbs 8:1-11"] },
+/* Day32 */  { day:32, passages:["Exodus 17:1-19:25","Matthew 21:1-22","Psalm 27:7-14","Proverbs 8:12-21"] },
+/* Day33 */  { day:33, passages:["Exodus 20:1-22:31","Matthew 21:23-46","Psalm 28","Proverbs 8:22-36"] },
+/* Day34 */  { day:34, passages:["Exodus 23:1-26:20","Matthew 22:1-33","Psalm 29","Proverbs 9:1-6"] },
+/* Day35 */  { day:35, passages:["Exodus 26:21-31:18","Matthew 22:34-23:22","Psalm 30","Proverbs 9:7-12"] },
+/* Day36 */  { day:36, passages:["Exodus 31:19-34:35","Matthew 23:23-39","Psalm 31:1-8","Proverbs 9:13-18"] },
+/* Day37 */  { day:37, passages:["Exodus 35:1-38:31","Matthew 24:1-28","Psalm 31:9-18","Proverbs 10:1"] },
+/* Day38 */  { day:38, passages:["Exodus 39:1-40:38","Matthew 24:29-51","Psalm 32","Proverbs 10:2-5"] },
+/* Day39 */  { day:39, passages:["Leviticus 1:1-4:35","Matthew 25:1-30","Psalm 33","Proverbs 10:6-11"] },
+/* Day40 */  { day:40, passages:["Leviticus 5:1-7:38","Matthew 25:31-46","Psalm 34:1-10","Proverbs 10:12-16"] },
+/* Day41 */  { day:41, passages:["Leviticus 8:1-10:20","Matthew 26:1-25","Psalm 34:11-22","Proverbs 10:17-21"] },
+/* Day42 */  { day:42, passages:["Leviticus 11:1-13:59","Matthew 26:26-50","Psalm 35:1-10","Proverbs 10:22-32"] },
+/* Day43 */  { day:43, passages:["Leviticus 14:1-15:33","Matthew 26:51-75","Psalm 35:11-28","Proverbs 11:1-3"] },
+/* Day44 */  { day:44, passages:["Leviticus 16:1-18:30","Matthew 27:1-26","Psalm 36","Proverbs 11:4-8"] },
+/* Day45 */  { day:45, passages:["Leviticus 19:1-20:27","Matthew 27:27-66","Psalm 37:1-11","Proverbs 11:9-14"] },
+/* Day46 */  { day:46, passages:["Leviticus 21:1-22:33","Matthew 28","Psalm 37:12-22","Proverbs 11:15-18"] },
+/* Day47 */  { day:47, passages:["Leviticus 23:1-25:55","Mark 1:1-20","Psalm 38","Proverbs 11:19-21"] },
+/* Day48 */  { day:48, passages:["Leviticus 26:1-27:34","Mark 1:21-45","Psalm 39","Proverbs 11:22-23"] },
+/* Day49 */  { day:49, passages:["Numbers 1:1-3:13","Mark 2:1-22","Psalm 40:1-10","Proverbs 11:24-26"] },
+/* Day50 */  { day:50, passages:["Numbers 3:14-5:31","Mark 2:23-3:12","Psalm 40:11-17","Proverbs 11:27-31"] },
+/* Day51 */  { day:51, passages:["Numbers 6:1-8:26","Mark 3:13-35","Psalm 41","Proverbs 12:1-7"] },
+/* Day52 */  { day:52, passages:["Numbers 9:1-11:23","Mark 4:1-20","Psalm 42","Proverbs 12:8-12"] },
+/* Day53 */  { day:53, passages:["Numbers 11:24-13:33","Mark 4:21-41","Psalm 43","Proverbs 12:13-19"] },
+/* Day54 */  { day:54, passages:["Numbers 14:1-16:40","Mark 5:1-20","Psalm 44","Proverbs 12:20-22"] },
+/* Day55 */  { day:55, passages:["Numbers 17:1-19:22","Mark 5:21-43","Psalm 45","Proverbs 12:23-28"] },
+/* Day56 */  { day:56, passages:["Numbers 20:1-22:35","Mark 6:1-29","Psalm 46","Proverbs 13:1-6"] },
+/* Day57 */  { day:57, passages:["Numbers 22:36-24:25","Mark 6:30-56","Psalm 47","Proverbs 13:7-9"] },
+/* Day58 */  { day:58, passages:["Numbers 25:1-27:23","Mark 7:1-23","Psalm 48","Proverbs 13:10-12"] },
+/* Day59 */  { day:59, passages:["Numbers 28:1-30:16","Mark 7:24-8:10","Psalm 49","Proverbs 13:13-16"] },
+/* Day60 */  { day:60, passages:["Numbers 31:1-33:56","Mark 8:11-9:1","Psalm 50","Proverbs 13:17-22"] },
+/* Day61 */  { day:61, passages:["Numbers 34:1-36:13","Mark 9:2-29","Psalm 51","Proverbs 13:23-25"] },
+/* Day62 */  { day:62, passages:["Deuteronomy 1:1-3:14","Mark 9:30-10:12","Psalm 52","Proverbs 14:1-7"] },
+/* Day63 */  { day:63, passages:["Deuteronomy 3:15-5:33","Mark 10:13-34","Psalm 53","Proverbs 14:8-12"] },
+/* Day64 */  { day:64, passages:["Deuteronomy 6:1-8:20","Mark 10:35-52","Psalm 54","Proverbs 14:13-15"] },
+/* Day65 */  { day:65, passages:["Deuteronomy 9:1-11:25","Mark 11:1-18","Psalm 55:1-11","Proverbs 14:16-20"] },
+/* Day66 */  { day:66, passages:["Deuteronomy 11:26-13:18","Mark 11:19-33","Psalm 55:12-23","Proverbs 14:21-23"] },
+/* Day67 */  { day:67, passages:["Deuteronomy 14:1-16:17","Mark 12:1-27","Psalm 56","Proverbs 14:24-26"] },
+/* Day68 */  { day:68, passages:["Deuteronomy 16:18-19:21","Mark 12:28-13:13","Psalm 57","Proverbs 14:27-29"] },
+/* Day69 */  { day:69, passages:["Deuteronomy 20:1-23:23","Mark 13:14-37","Psalm 58","Proverbs 15:1-4"] },
+/* Day70 */  { day:70, passages:["Deuteronomy 24:1-27:26","Mark 14:1-26","Psalm 59","Proverbs 15:5-7"] },
+/* Day71 */  { day:71, passages:["Deuteronomy 28:1-30:20","Mark 14:27-50","Psalm 60","Proverbs 15:8-11"] },
+/* Day72 */  { day:72, passages:["Deuteronomy 31:1-34:12","Mark 14:51-72","Psalm 61","Proverbs 15:12-17"] },
+/* Day73 */  { day:73, passages:["Joshua 1:1-3:11","Mark 15:1-25","Psalm 62","Proverbs 15:18-19"] },
+/* Day74 */  { day:74, passages:["Joshua 3:12-5:12","Mark 15:26-47","Psalm 63","Proverbs 15:20-21"] },
+/* Day75 */  { day:75, passages:["Joshua 5:13-7:26","Mark 16","Psalm 64","Proverbs 15:22-23"] },
+/* Day76 */  { day:76, passages:["Joshua 8:1-10:15","Luke 1:1-25","Psalm 65","Proverbs 15:24-26"] },
+/* Day77 */  { day:77, passages:["Joshua 10:16-12:24","Luke 1:26-56","Psalm 66","Proverbs 15:27-29"] },
+/* Day78 */  { day:78, passages:["Joshua 13:1-15:19","Luke 1:57-80","Psalm 67","Proverbs 16:1-4"] },
+/* Day79 */  { day:79, passages:["Joshua 15:20-17:18","Luke 2:1-24","Psalm 68","Proverbs 16:5-9"] },
+/* Day80 */  { day:80, passages:["Joshua 18:1-20:18","Luke 2:25-52","Psalm 69:1-18","Proverbs 16:10-13"] },
+/* Day81 */  { day:81, passages:["Joshua 21:1-24:33","Luke 3","Psalm 69:19-36","Proverbs 16:14-17"] },
+/* Day82 */  { day:82, passages:["Judges 1:1-3:4","Luke 4:1-30","Psalm 70","Proverbs 16:18-20"] },
+/* Day83 */  { day:83, passages:["Judges 3:5-5:31","Luke 4:31-44","Psalm 71","Proverbs 16:21-24"] },
+/* Day84 */  { day:84, passages:["Judges 6:1-8:32","Luke 5:1-26","Psalm 72","Proverbs 16:25-33"] },
+/* Day85 */  { day:85, passages:["Judges 9:1-11:33","Luke 5:27-6:16","Psalm 73:1-14","Proverbs 17:1-7"] },
+/* Day86 */  { day:86, passages:["Judges 12:1-15:20","Luke 6:17-49","Psalm 73:15-28","Proverbs 17:8-13"] },
+/* Day87 */  { day:87, passages:["Judges 16:1-18:31","Luke 7:1-30","Psalm 74","Proverbs 17:14-17"] },
+/* Day88 */  { day:88, passages:["Judges 19:1-21:25","Luke 7:31-50","Psalm 75","Proverbs 17:18-21"] },
+/* Day89 */  { day:89, passages:["Ruth 1:1-4:22","Luke 8:1-25","Psalm 76","Proverbs 17:22-24"] },
+/* Day90 */  { day:90, passages:["1 Samuel 1:1-3:21","Luke 8:26-56","Psalm 77","Proverbs 18:1-4"] },
+/* Day91 */  { day:91, passages:["1 Samuel 4:1-6:21","Luke 9:1-17","Psalm 78:1-11","Proverbs 18:5-7"] },
+/* Day92 */  { day:92, passages:["1 Samuel 7:1-9:27","Luke 9:18-50","Psalm 78:12-21","Proverbs 18:8-10"] },
+/* Day93 */  { day:93, passages:["1 Samuel 10:1-12:25","Luke 9:51-10:16","Psalm 78:22-31","Proverbs 18:11-14"] },
+/* Day94 */  { day:94, passages:["1 Samuel 13:1-14:52","Luke 10:17-42","Psalm 78:32-39","Proverbs 18:15-17"] },
+/* Day95 */  { day:95, passages:["1 Samuel 15:1-17:58","Luke 11:1-13","Psalm 78:40-55","Proverbs 18:18-20"] },
+/* Day96 */  { day:96, passages:["1 Samuel 18:1-20:42","Luke 11:14-36","Psalm 78:56-72","Proverbs 18:21-24"] },
+/* Day97 */  { day:97, passages:["1 Samuel 21:1-23:29","Luke 11:37-54","Psalm 79","Proverbs 19:1-4"] },
+/* Day98 */  { day:98, passages:["1 Samuel 24:1-26:25","Luke 12:1-34","Psalm 80","Proverbs 19:5-7"] },
+/* Day99 */  { day:99, passages:["1 Samuel 27:1-29:11","Luke 12:35-59","Psalm 81","Proverbs 19:8-10"] },
+/* Day100 */ { day:100, passages:["1 Samuel 30:1-31:13","Luke 13:1-21","Psalm 82","Proverbs 19:11-12"] },
+/* Day101 */ { day:101, passages:["2 Samuel 1:1-3:39","Luke 13:22-35","Psalm 83","Proverbs 19:13-14"] },
+/* Day102 */ { day:102, passages:["2 Samuel 4:1-6:23","Luke 14:1-24","Psalm 84","Proverbs 19:15-17"] },
+/* Day103 */ { day:103, passages:["2 Samuel 7:1-9:13","Luke 14:25-35","Psalm 85","Proverbs 19:18-21"] },
+/* Day104 */ { day:104, passages:["2 Samuel 10:1-12:31","Luke 15:1-32","Psalm 86","Proverbs 19:22-23"] },
+/* Day105 */ { day:105, passages:["2 Samuel 13:1-15:37","Luke 16:1-18","Psalm 87","Proverbs 19:24-25"] },
+/* Day106 */ { day:106, passages:["2 Samuel 16:1-18:33","Luke 16:19-31","Psalm 88","Proverbs 19:26-29"] },
+/* Day107 */ { day:107, passages:["2 Samuel 19:1-21:22","Luke 17:1-19","Psalm 89:1-18","Proverbs 20:1-3"] },
+/* Day108 */ { day:108, passages:["2 Samuel 22:1-24:25","Luke 17:20-37","Psalm 89:19-52","Proverbs 20:4-7"] },
+/* Day109 */ { day:109, passages:["1 Kings 1:1-3:15","Luke 18:1-17","Psalm 90","Proverbs 20:8-9"] },
+/* Day110 */ { day:110, passages:["1 Kings 4:1-6:38","Luke 18:18-43","Psalm 91","Proverbs 20:10-13"] },
+/* Day111 */ { day:111, passages:["1 Kings 7:1-9:28","Luke 19:1-27","Psalm 92","Proverbs 20:14-16"] },
+/* Day112 */ { day:112, passages:["1 Kings 10:1-12:24","Luke 19:28-48","Psalm 93","Proverbs 20:17-21"] },
+/* Day113 */ { day:113, passages:["1 Kings 13:1-15:24","Luke 20:1-26","Psalm 94","Proverbs 20:22-25"] },
+/* Day114 */ { day:114, passages:["1 Kings 15:25-17:24","Luke 20:27-47","Psalm 95","Proverbs 21:1-3"] },
+/* Day115 */ { day:115, passages:["1 Kings 18:1-19:21","Luke 21:1-28","Psalm 96","Proverbs 21:4-7"] },
+/* Day116 */ { day:116, passages:["1 Kings 20:1-22:53","Luke 21:29-22:6","Psalm 97","Proverbs 21:8-12"] },
+/* Day117 */ { day:117, passages:["2 Kings 1:1-3:27","Luke 22:7-38","Psalm 98","Proverbs 21:13-15"] },
+/* Day118 */ { day:118, passages:["2 Kings 4:1-6:23","Luke 22:39-71","Psalm 99","Proverbs 21:16-17"] },
+/* Day119 */ { day:119, passages:["2 Kings 7:1-9:13","Luke 23:1-25","Psalm 100","Proverbs 21:18-21"] },
+/* Day120 */ { day:120, passages:["2 Kings 9:14-11:20","Luke 23:26-56","Psalm 101","Proverbs 21:22-23"] },
+/* Day121 */ { day:121, passages:["2 Kings 12:1-14:29","Luke 24","Psalm 102:1-11","Proverbs 22:1-5"] },
+/* Day122 */ { day:122, passages:["2 Kings 15:1-17:41","John 1:1-18","Psalm 102:12-28","Proverbs 22:6-9"] },
+/* Day123 */ { day:123, passages:["2 Kings 18:1-20:21","John 1:19-51","Psalm 103","Proverbs 22:10-16"] },
+/* Day124 */ { day:124, passages:["2 Kings 21:1-23:30","John 2:1-25","Psalm 104:1-23","Proverbs 22:17-21"] },
+/* Day125 */ { day:125, passages:["2 Kings 23:31-25:30","John 3:1-21","Psalm 104:24-35","Proverbs 22:22-25"] },
+/* Day126 */ { day:126, passages:["1 Chronicles 1:1-3:17","John 3:22-36","Psalm 105:1-15","Proverbs 22:26-29"] },
+/* Day127 */ { day:127, passages:["1 Chronicles 4:1-6:81","John 4:1-26","Psalm 105:16-45","Proverbs 23:1-3"] },
+/* Day128 */ { day:128, passages:["1 Chronicles 7:1-9:44","John 4:27-54","Psalm 106:1-12","Proverbs 23:4-6"] },
+/* Day129 */ { day:129, passages:["1 Chronicles 10:1-12:40","John 5:1-23","Psalm 106:13-33","Proverbs 23:7-8"] },
+/* Day130 */ { day:130, passages:["1 Chronicles 13:1-16:43","John 5:24-47","Psalm 107:1-22","Proverbs 23:9-11"] },
+/* Day131 */ { day:131, passages:["1 Chronicles 17:1-20:8","John 6:1-21","Psalm 107:23-43","Proverbs 23:12-14"] },
+/* Day132 */ { day:132, passages:["1 Chronicles 21:1-24:31","John 6:22-40","Psalm 108","Proverbs 23:15-18"] },
+/* Day133 */ { day:133, passages:["1 Chronicles 25:1-29:30","John 6:41-71","Psalm 109:1-20","Proverbs 23:19-21"] },
+/* Day134 */ { day:134, passages:["2 Chronicles 1:1-3:17","John 7:1-24","Psalm 109:21-31","Proverbs 23:22-25"] },
+/* Day135 */ { day:135, passages:["2 Chronicles 4:1-7:22","John 7:25-53","Psalm 110","Proverbs 24:1-6"] },
+/* Day136 */ { day:136, passages:["2 Chronicles 8:1-11:23","John 8:1-30","Psalm 111","Proverbs 24:7-9"] },
+/* Day137 */ { day:137, passages:["2 Chronicles 12:1-16:14","John 8:31-59","Psalm 112","Proverbs 24:10-12"] },
+/* Day138 */ { day:138, passages:["2 Chronicles 17:1-20:37","John 9:1-23","Psalm 113","Proverbs 24:13-14"] },
+/* Day139 */ { day:139, passages:["2 Chronicles 21:1-24:27","John 9:24-10:21","Psalm 114","Proverbs 24:15-22"] },
+/* Day140 */ { day:140, passages:["2 Chronicles 25:1-28:27","John 10:22-42","Psalm 115","Proverbs 24:23-34"] },
+/* Day141 */ { day:141, passages:["2 Chronicles 29:1-32:33","John 11:1-27","Psalm 116","Proverbs 25:1-7"] },
+/* Day142 */ { day:142, passages:["2 Chronicles 33:1-36:23","John 11:28-57","Psalm 117","Proverbs 25:8-10"] },
+/* Day143 */ { day:143, passages:["Ezra 1:1-3:13","John 12:1-19","Psalm 118:1-18","Proverbs 25:11-12"] },
+/* Day144 */ { day:144, passages:["Ezra 4:1-6:22","John 12:20-50","Psalm 118:19-29","Proverbs 25:13-14"] },
+/* Day145 */ { day:145, passages:["Ezra 7:1-8:36","John 13:1-20","Psalm 119:1-16","Proverbs 25:15-16"] },
+/* Day146 */ { day:146, passages:["Ezra 9:1-10:44","John 13:21-38","Psalm 119:17-32","Proverbs 25:17-22"] },
+/* Day147 */ { day:147, passages:["Nehemiah 1:1-3:32","John 14","Psalm 119:33-48","Proverbs 25:23-28"] },
+/* Day148 */ { day:148, passages:["Nehemiah 4:1-6:19","John 15","Psalm 119:49-64","Proverbs 26:1-5"] },
+/* Day149 */ { day:149, passages:["Nehemiah 7:1-9:38","John 16","Psalm 119:65-80","Proverbs 26:6-12"] },
+/* Day150 */ { day:150, passages:["Nehemiah 10:1-11:36","John 17","Psalm 119:81-96","Proverbs 26:13-16"] },
+/* Day151 */ { day:151, passages:["Nehemiah 12:1-13:31","John 18:1-27","Psalm 119:97-112","Proverbs 26:17-22"] },
+/* Day152 */ { day:152, passages:["Esther 1:1-4:17","John 18:28-40","Psalm 119:113-128","Proverbs 26:23-28"] },
+/* Day153 */ { day:153, passages:["Esther 5:1-10:3","John 19:1-22","Psalm 119:129-144","Proverbs 27:1-4"] },
+/* Day154 */ { day:154, passages:["Job 1:1-3:26","John 19:23-42","Psalm 120","Proverbs 27:5-7"] },
+/* Day155 */ { day:155, passages:["Job 4:1-6:27","John 20","Psalm 121","Proverbs 27:8-10"] },
+/* Day156 */ { day:156, passages:["Job 7:1-9:35","John 21","Psalm 122","Proverbs 27:11-12"] },
+/* Day157 */ { day:157, passages:["Job 10:1-12:25","Acts 1:1-2:13","Psalm 123","Proverbs 27:13-14"] },
+/* Day158 */ { day:158, passages:["Job 13:1-15:35","Acts 2:14-47","Psalm 124","Proverbs 27:15-17"] },
+/* Day159 */ { day:159, passages:["Job 16:1-18:21","Acts 3:1-4:22","Psalm 125","Proverbs 27:18-22"] },
+/* Day160 */ { day:160, passages:["Job 19:1-21:34","Acts 4:23-5:16","Psalm 126","Proverbs 28:1-3"] },
+/* Day161 */ { day:161, passages:["Job 22:1-24:25","Acts 5:17-6:15","Psalm 127","Proverbs 28:4-6"] },
+/* Day162 */ { day:162, passages:["Job 25:1-28:28","Acts 7:1-8:3","Psalm 128","Proverbs 28:7-9"] },
+/* Day163 */ { day:163, passages:["Job 29:1-31:40","Acts 8:4-40","Psalm 129","Proverbs 28:10-14"] },
+/* Day164 */ { day:164, passages:["Job 32:1-34:37","Acts 9:1-31","Psalm 130","Proverbs 28:15-19"] },
+/* Day165 */ { day:165, passages:["Job 35:1-37:24","Acts 9:32-10:48","Psalm 131","Proverbs 28:20-22"] },
+/* Day166 */ { day:166, passages:["Job 38:1-39:30","Acts 11:1-12:25","Psalm 132","Proverbs 28:23-28"] },
+/* Day167 */ { day:167, passages:["Job 40:1-42:17","Acts 13:1-14:28","Psalm 133","Proverbs 29:1-4"] },
+/* Day168 */ { day:168, passages:["Psalm 1-8","Acts 15:1-16:5","Psalm 134","Proverbs 29:5-8"] },
+/* Day169 */ { day:169, passages:["Psalm 9-16","Acts 16:6-17:15","Psalm 135","Proverbs 29:9-11"] },
+/* Day170 */ { day:170, passages:["Psalm 17-19","Acts 17:16-18:11","Psalm 136","Proverbs 29:12-14"] },
+/* Day171 */ { day:171, passages:["Psalm 20-24","Acts 18:12-19:20","Psalm 137","Proverbs 29:15-17"] },
+/* Day172 */ { day:172, passages:["Psalm 25-29","Acts 19:21-20:12","Psalm 138","Proverbs 29:18-20"] },
+/* Day173 */ { day:173, passages:["Psalm 30-34","Acts 20:13-21:17","Psalm 139","Proverbs 29:21-23"] },
+/* Day174 */ { day:174, passages:["Psalm 35-38","Acts 21:18-22:29","Psalm 140","Proverbs 29:24-27"] },
+/* Day175 */ { day:175, passages:["Psalm 39-43","Acts 22:30-23:35","Psalm 141","Proverbs 30:1-4"] },
+/* Day176 */ { day:176, passages:["Psalm 44-47","Acts 24:1-25:12","Psalm 142","Proverbs 30:5-9"] },
+/* Day177 */ { day:177, passages:["Psalm 48-51","Acts 25:13-26:32","Psalm 143","Proverbs 30:10-14"] },
+/* Day178 */ { day:178, passages:["Psalm 52-56","Acts 27:1-28:15","Psalm 144","Proverbs 30:15-17"] },
+/* Day179 */ { day:179, passages:["Psalm 57-60","Romans 1:1-2:16","Psalm 145","Proverbs 30:18-20"] },
+/* Day180 */ { day:180, passages:["Psalm 61-64","Romans 2:17-3:20","Psalm 146","Proverbs 30:21-23"] },
+/* Day181 */ { day:181, passages:["Psalm 65-68","Romans 3:21-4:25","Psalm 147","Proverbs 30:24-31"] },
+/* Day182 */ { day:182, passages:["Psalm 69-71","Romans 5:1-6:14","Psalm 148","Proverbs 31:1-9"] },
+/* Day183 */ { day:183, passages:["Psalm 72-74","Romans 6:15-8:11","Psalm 149","Proverbs 31:10-12"] },
+/* Day184 */ { day:184, passages:["Psalm 75-78","Romans 8:12-10:4","Psalm 150","Proverbs 31:13-31"] },
+/* Day185 */ { day:185, passages:["Proverbs 1-3","1 Corinthians 1:1-2:16","Song of Solomon 1-4","Ecclesiastes 1-2"] },
+/* Day186 */ { day:186, passages:["Proverbs 4-6","1 Corinthians 3:1-4:21","Song of Solomon 5-8","Ecclesiastes 3-4"] },
+/* Day187 */ { day:187, passages:["Proverbs 7-9","1 Corinthians 5:1-7:16","Isaiah 1-3","Isaiah 4-6"] },
+/* Day188 */ { day:188, passages:["Proverbs 10-12","1 Corinthians 8:1-10:33","Isaiah 7-9","Isaiah 10-12"] },
+/* Day189 */ { day:189, passages:["Proverbs 13-15","1 Corinthians 11:1-13:13","Isaiah 13-15","Isaiah 16-18"] },
+/* Day190 */ { day:190, passages:["Proverbs 16-18","1 Corinthians 14:1-16:24","Isaiah 19-21","Isaiah 22-24"] },
+/* Day191 */ { day:191, passages:["Proverbs 19-21","2 Corinthians 1:1-3:18","Isaiah 25-27","Isaiah 28-30"] },
+/* Day192 */ { day:192, passages:["Proverbs 22-24","2 Corinthians 4:1-6:18","Isaiah 31-33","Isaiah 34-36"] },
+/* Day193 */ { day:193, passages:["Proverbs 25-27","2 Corinthians 7:1-9:15","Isaiah 37-39","Isaiah 40-42"] },
+/* Day194 */ { day:194, passages:["Proverbs 28-31","2 Corinthians 10:1-13:14","Isaiah 43-45","Isaiah 46-48"] },
+/* Day195 */ { day:195, passages:["Ecclesiastes 5-7","Galatians 1","Isaiah 49-51","Isaiah 52-54"] },
+/* Day196 */ { day:196, passages:["Ecclesiastes 8-10","Galatians 2","Isaiah 55-57","Isaiah 58-60"] },
+/* Day197 */ { day:197, passages:["Ecclesiastes 11-12","Ephesians 1:1-2:10","Isaiah 61-63","Isaiah 64-66"] },
+/* Day198 */ { day:198, passages:["Song of Solomon (read again)","Ephesians 2:11-3:21","Jeremiah 1-3","Jeremiah 4-6"] },
+/* Day199 */ { day:199, passages:["Isaiah (review)","Ephesians 4:1-6:24","Jeremiah 7-9","Jeremiah 10-12"] },
+/* Day200 */ { day:200, passages:["Jeremiah 13-15","Philippians 1","Jeremiah 16-18","Jeremiah 19-21"] },
+/* Day201 */ { day:201, passages:["Jeremiah 22-24","Philippians 2","Jeremiah 25-27","Jeremiah 28-30"] },
+/* Day202 */ { day:202, passages:["Jeremiah 31-33","Philippians 3","Jeremiah 34-36","Jeremiah 37-39"] },
+/* Day203 */ { day:203, passages:["Jeremiah 40-42","Colossians 1","Jeremiah 43-45","Jeremiah 46-48"] },
+/* Day204 */ { day:204, passages:["Jeremiah 49-51","Colossians 2","Jeremiah 52; Lamentations 1-2","Lamentations 3-5"] },
+/* Day205 */ { day:205, passages:["Ezekiel 1-3","1 Thessalonians 1","Ezekiel 4-6","Ezekiel 7-9"] },
+/* Day206 */ { day:206, passages:["Ezekiel 10-12","1 Thessalonians 2","Ezekiel 13-15","Ezekiel 16-18"] },
+/* Day207 */ { day:207, passages:["Ezekiel 19-21","1 Thessalonians 3","Ezekiel 22-24","Ezekiel 25-27"] },
+/* Day208 */ { day:208, passages:["Ezekiel 28-30","1 Thessalonians 4","Ezekiel 31-33","Ezekiel 34-36"] },
+/* Day209 */ { day:209, passages:["Ezekiel 37-39","1 Thessalonians 5","Ezekiel 40-42","Ezekiel 43-45"] },
+/* Day210 */ { day:210, passages:["Ezekiel 46-48","2 Thessalonians 1","Daniel 1-3","Daniel 4-6"] },
+/* Day211 */ { day:211, passages:["Daniel 7-9","2 Thessalonians 2","Daniel 10-12","Hosea 1-3"] },
+/* Day212 */ { day:212, passages:["Hosea 4-6","1 Timothy 1","Hosea 7-9","Hosea 10-12"] },
+/* Day213 */ { day:213, passages:["Hosea 13-14","1 Timothy 2","Joel 1-3","Amos 1-3"] },
+/* Day214 */ { day:214, passages:["Amos 4-6","1 Timothy 3","Amos 7-9","Obadiah; Jonah 1-2"] },
+/* Day215 */ { day:215, passages:["Jonah 3-4; Micah 1-2","1 Timothy 4","Micah 3-5","Nahum 1-3"] },
+/* Day216 */ { day:216, passages:["Habakkuk 1-3","1 Timothy 5","Zephaniah 1-3","Haggai 1-2"] },
+/* Day217 */ { day:217, passages:["Zechariah 1-4","1 Timothy 6","Zechariah 5-8","Zechariah 9-11"] },
+/* Day218 */ { day:218, passages:["Zechariah 12-14","Titus 1","Malachi 1-4","Matthew (review pass)"] },
+/* Day219 */ { day:219, passages:["Minor Prophets review","Titus 2","Mark 1-3","Mark 4-6"] },
+/* Day220 */ { day:220, passages:["Historical wrap-up","Titus 3","Mark 7-9","Mark 10-12"] },
+/* Day221 */ { day:221, passages:["Catch-up / review","Philemon; Hebrews 1-2","Hebrews 3-5","Hebrews 6-7"] },
+/* Day222 */ { day:222, passages:["Hebrews 8-10","James 1","Hebrews 11-13","James 2-3"] },
+/* Day223 */ { day:223, passages:["1 Peter 1-3","James 4-5","2 Peter 1-3","1 John 1-3"] },
+/* Day224 */ { day:224, passages:["1 John 4-5","Jude","Revelation 1-3","Revelation 4-6"] },
+/* Day225 */ { day:225, passages:["Revelation 7-9","Review Psalms as needed","Review Proverbs as needed","Final readings to finish year"] },
+/* Day226 */ { day:226, passages:["(Buffer days) — Various wrap-ups to ensure full coverage through day 365","(Use as catch-up or devotionals)","(Optional reading suggestions)","(Optional)"] },
+/* Day227 */ { day:227, passages:["Catch-up / Review"] },
+/* Day228 */ { day:228, passages:["Catch-up / Review"] },
+/* Day229 */ { day:229, passages:["Catch-up / Review"] },
+/* Day230 */ { day:230, passages:["Catch-up / Review"] },
+/* Day231 */ { day:231, passages:["Catch-up / Review"] },
+/* Day232 */ { day:232, passages:["Catch-up / Review"] },
+/* Day233 */ { day:233, passages:["Catch-up / Review"] },
+/* Day234 */ { day:234, passages:["Catch-up / Review"] },
+/* Day235 */ { day:235, passages:["Catch-up / Review"] },
+/* Day236 */ { day:236, passages:["Catch-up / Review"] },
+/* Day237 */ { day:237, passages:["Catch-up / Review"] },
+/* Day238 */ { day:238, passages:["Catch-up / Review"] },
+/* Day239 */ { day:239, passages:["Catch-up / Review"] },
+/* Day240 */ { day:240, passages:["Catch-up / Review"] },
+/* Day241 */ { day:241, passages:["Catch-up / Review"] },
+/* Day242 */ { day:242, passages:["Catch-up / Review"] },
+/* Day243 */ { day:243, passages:["Catch-up / Review"] },
+/* Day244 */ { day:244, passages:["Catch-up / Review"] },
+/* Day245 */ { day:245, passages:["Catch-up / Review"] },
+/* Day246 */ { day:246, passages:["Catch-up / Review"] },
+/* Day247 */ { day:247, passages:["Catch-up / Review"] },
+/* Day248 */ { day:248, passages:["Catch-up / Review"] },
+/* Day249 */ { day:249, passages:["Catch-up / Review"] },
+/* Day250 */ { day:250, passages:["Catch-up / Review"] },
+/* Day251 */ { day:251, passages:["Catch-up / Review"] },
+/* Day252 */ { day:252, passages:["Catch-up / Review"] },
+/* Day253 */ { day:253, passages:["Catch-up / Review"] },
+/* Day254 */ { day:254, passages:["Catch-up / Review"] },
+/* Day255 */ { day:255, passages:["Catch-up / Review"] },
+/* Day256 */ { day:256, passages:["Catch-up / Review"] },
+/* Day257 */ { day:257, passages:["Catch-up / Review"] },
+/* Day258 */ { day:258, passages:["Catch-up / Review"] },
+/* Day259 */ { day:259, passages:["Catch-up / Review"] },
+/* Day260 */ { day:260, passages:["Catch-up / Review"] },
+/* Day261 */ { day:261, passages:["Catch-up / Review"] },
+/* Day262 */ { day:262, passages:["Catch-up / Review"] },
+/* Day263 */ { day:263, passages:["Catch-up / Review"] },
+/* Day264 */ { day:264, passages:["Catch-up / Review"] },
+/* Day265 */ { day:265, passages:["Catch-up / Review"] },
+/* Day266 */ { day:266, passages:["Catch-up / Review"] },
+/* Day267 */ { day:267, passages:["Catch-up / Review"] },
+/* Day268 */ { day:268, passages:["Catch-up / Review"] },
+/* Day269 */ { day:269, passages:["Catch-up / Review"] },
+/* Day270 */ { day:270, passages:["Catch-up / Review"] },
+/* Day271 */ { day:271, passages:["Catch-up / Review"] },
+/* Day272 */ { day:272, passages:["Catch-up / Review"] },
+/* Day273 */ { day:273, passages:["Catch-up / Review"] },
+/* Day274 */ { day:274, passages:["Catch-up / Review"] },
+/* Day275 */ { day:275, passages:["Catch-up / Review"] },
+/* Day276 */ { day:276, passages:["Catch-up / Review"] },
+/* Day277 */ { day:277, passages:["Catch-up / Review"] },
+/* Day278 */ { day:278, passages:["Catch-up / Review"] },
+/* Day279 */ { day:279, passages:["Catch-up / Review"] },
+/* Day280 */ { day:280, passages:["Catch-up / Review"] },
+/* Day281 */ { day:281, passages:["Catch-up / Review"] },
+/* Day282 */ { day:282, passages:["Catch-up / Review"] },
+/* Day283 */ { day:283, passages:["Catch-up / Review"] },
+/* Day284 */ { day:284, passages:["Catch-up / Review"] },
+/* Day285 */ { day:285, passages:["Catch-up / Review"] },
+/* Day286 */ { day:286, passages:["Catch-up / Review"] },
+/* Day287 */ { day:287, passages:["Catch-up / Review"] },
+/* Day288 */ { day:288, passages:["Catch-up / Review"] },
+/* Day289 */ { day:289, passages:["Catch-up / Review"] },
+/* Day290 */ { day:290, passages:["Catch-up / Review"] },
+/* Day291 */ { day:291, passages:["Catch-up / Review"] },
+/* Day292 */ { day:292, passages:["Catch-up / Review"] },
+/* Day293 */ { day:293, passages:["Catch-up / Review"] },
+/* Day294 */ { day:294, passages:["Catch-up / Review"] },
+/* Day295 */ { day:295, passages:["Catch-up / Review"] },
+/* Day296 */ { day:296, passages:["Catch-up / Review"] },
+/* Day297 */ { day:297, passages:["Catch-up / Review"] },
+/* Day298 */ { day:298, passages:["Catch-up / Review"] },
+/* Day299 */ { day:299, passages:["Catch-up / Review"] },
+/* Day300 */ { day:300, passages:["Catch-up / Review"] },
+/* Day301 */ { day:301, passages:["Catch-up / Review"] },
+/* Day302 */ { day:302, passages:["Catch-up / Review"] },
+/* Day303 */ { day:303, passages:["Catch-up / Review"] },
+/* Day304 */ { day:304, passages:["Catch-up / Review"] },
+/* Day305 */ { day:305, passages:["Catch-up / Review"] },
+/* Day306 */ { day:306, passages:["Catch-up / Review"] },
+/* Day307 */ { day:307, passages:["Catch-up / Review"] },
+/* Day308 */ { day:308, passages:["Catch-up / Review"] },
+/* Day309 */ { day:309, passages:["Catch-up / Review"] },
+/* Day310 */ { day:310, passages:["Catch-up / Review"] },
+/* Day311 */ { day:311, passages:["Catch-up / Review"] },
+/* Day312 */ { day:312, passages:["Catch-up / Review"] },
+/* Day313 */ { day:313, passages:["Catch-up / Review"] },
+/* Day314 */ { day:314, passages:["Catch-up / Review"] },
+/* Day315 */ { day:315, passages:["Catch-up / Review"] },
+/* Day316 */ { day:316, passages:["Catch-up / Review"] },
+/* Day317 */ { day:317, passages:["Catch-up / Review"] },
+/* Day318 */ { day:318, passages:["Catch-up / Review"] },
+/* Day319 */ { day:319, passages:["Catch-up / Review"] },
+/* Day320 */ { day:320, passages:["Catch-up / Review"] },
+/* Day321 */ { day:321, passages:["Catch-up / Review"] },
+/* Day322 */ { day:322, passages:["Catch-up / Review"] },
+/* Day323 */ { day:323, passages:["Catch-up / Review"] },
+/* Day324 */ { day:324, passages:["Catch-up / Review"] },
+/* Day325 */ { day:325, passages:["Catch-up / Review"] },
+/* Day326 */ { day:326, passages:["Catch-up / Review"] },
+/* Day327 */ { day:327, passages:["Catch-up / Review"] },
+/* Day328 */ { day:328, passages:["Catch-up / Review"] },
+/* Day329 */ { day:329, passages:["Catch-up / Review"] },
+/* Day330 */ { day:330, passages:["Catch-up / Review"] },
+/* Day331 */ { day:331, passages:["Catch-up / Review"] },
+/* Day332 */ { day:332, passages:["Catch-up / Review"] },
+/* Day333 */ { day:333, passages:["Catch-up / Review"] },
+/* Day334 */ { day:334, passages:["Catch-up / Review"] },
+/* Day335 */ { day:335, passages:["Catch-up / Review"] },
+/* Day336 */ { day:336, passages:["Catch-up / Review"] },
+/* Day337 */ { day:337, passages:["Catch-up / Review"] },
+/* Day338 */ { day:338, passages:["Catch-up / Review"] },
+/* Day339 */ { day:339, passages:["Catch-up / Review"] },
+/* Day340 */ { day:340, passages:["Catch-up / Review"] },
+/* Day341 */ { day:341, passages:["Catch-up / Review"] },
+/* Day342 */ { day:342, passages:["Catch-up / Review"] },
+/* Day343 */ { day:343, passages:["Catch-up / Review"] },
+/* Day344 */ { day:344, passages:["Catch-up / Review"] },
+/* Day345 */ { day:345, passages:["Catch-up / Review"] },
+/* Day346 */ { day:346, passages:["Catch-up / Review"] },
+/* Day347 */ { day:347, passages:["Catch-up / Review"] },
+/* Day348 */ { day:348, passages:["Catch-up / Review"] },
+/* Day349 */ { day:349, passages:["Catch-up / Review"] },
+/* Day350 */ { day:350, passages:["Catch-up / Review"] },
+/* Day351 */ { day:351, passages:["Catch-up / Review"] },
+/* Day352 */ { day:352, passages:["Catch-up / Review"] },
+/* Day353 */ { day:353, passages:["Catch-up / Review"] },
+/* Day354 */ { day:354, passages:["Catch-up / Review"] },
+/* Day355 */ { day:355, passages:["Catch-up / Review"] },
+/* Day356 */ { day:356, passages:["Catch-up / Review"] },
+/* Day357 */ { day:357, passages:["Catch-up / Review"] },
+/* Day358 */ { day:358, passages:["Catch-up / Review"] },
+/* Day359 */ { day:359, passages:["Catch-up / Review"] },
+/* Day360 */ { day:360, passages:["Catch-up / Review"] },
+/* Day361 */ { day:361, passages:["Catch-up / Review"] },
+/* Day362 */ { day:362, passages:["Catch-up / Review"] },
+/* Day363 */ { day:363, passages:["Catch-up / Review"] },
+/* Day364 */ { day:364, passages:["Catch-up / Review"] },
+/* Day365 */ { day:365, passages:["Catch-up / Review"] }
+];
+
+/************************************************************************
+ * Utility functions
+ ************************************************************************/
+function getDayOfYear(date = new Date()){
+  const start = new Date(date.getFullYear(), 0, 0);
+  const diff = date - start + ((start.getTimezoneOffset() - date.getTimezoneOffset()) * 60 * 1000);
+  return Math.floor(diff / (1000 * 60 * 60 * 24));
+}
+
+function findPlanByDay(day){
+  return plan.find(p => p.day === day) || null;
+}
+
+/************************************************************************
+ * ESV API fetch with simple caching (localStorage)
+ ************************************************************************/
+async function fetchESVText(reference){
+  // local cache key per ref
+  const cacheKey = `esv:${reference}`;
+  try {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      const obj = JSON.parse(cached);
+      // expire after 7 days
+      if (Date.now() - obj.t < 1000 * 60 * 60 * 24 * 7) {
+        return { ref: reference, text: obj.text };
+      }
+    }
+  } catch(e){ /* ignore cache errors */ }
+
+  if(!ESV_API_KEY || ESV_API_KEY.includes("<REPLACE")) {
+    return { ref: reference, text: "[Insert your ESV API key to load text]" };
+  }
+
+  const q = encodeURIComponent(reference);
+  const url = `https://api.esv.org/v3/passage/text/?q=${q}&include-footnotes=false&include-headings=false&include-verse-numbers=true&include-short-copyright=true`;
+
+  try {
+    const resp = await fetch(url, {
+      headers: { "Authorization": ESV_API_KEY }
+    });
+    if(!resp.ok){
+      const txt = await resp.text();
+      return { ref: reference, text: `[Error ${resp.status}] ${txt}` };
+    }
+    const data = await resp.json();
+    const text = (data.passages && data.passages.length) ? data.passages.join("\n\n") : "[No text returned]";
+    // cache
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify({ t: Date.now(), text }));
+    } catch(e){}
+    return { ref: reference, text };
+  } catch(err){
+    return { ref: reference, text: `[Fetch error] ${err.message}` };
+  }
+}
+
+/************************************************************************
+ * Render logic
+ ************************************************************************/
+const readingsEl = document.getElementById('readings');
+const dateLabel = document.getElementById('dateLabel');
+let currentDay = getDayOfYear();
+
+async function renderDay(day){
+  readingsEl.innerHTML = '<div class="loading">Loading…</div>';
+  document.getElementById('error').textContent = "";
+  const planEntry = findPlanByDay(day);
+  const displayDate = new Date(new Date().getFullYear(), 0, day - 1);
+  dateLabel.textContent = `${displayDate.toLocaleDateString(undefined, { month:'short', day:'numeric' })} — Day ${day}`;
+
+  if(!planEntry){
+    readingsEl.innerHTML = `<div style="color:#444">No plan data for day ${day}. If you want I can update the full mapping.</div>`;
+    return;
+  }
+
+  readingsEl.innerHTML = ""; // clear
+
+  // Render skeleton for each ref
+  for(const ref of planEntry.passages){
+    const card = document.createElement('div');
+    card.className = 'passage-card';
+    card.innerHTML = `<div class="passage-ref">${ref}</div><div class="passage-text">Loading passage…</div>`;
+    readingsEl.appendChild(card);
+  }
+
+  // fetch all texts in parallel (be mindful of rate limits)
+  const fetches = planEntry.passages.map(p => fetchESVText(p));
+  const results = await Promise.all(fetches);
+
+  // populate
+  const cards = readingsEl.querySelectorAll('.passage-card');
+  results.forEach((res, i) => {
+    const txtEl = cards[i].querySelector('.passage-text');
+    txtEl.textContent = res.text;
+  });
+}
+
+/************************************************************************
+ * Navigation handlers
+ ************************************************************************/
+document.getElementById('prevBtn').addEventListener('click', () => {
+  currentDay = Math.max(1, currentDay - 1);
+  renderDay(currentDay);
+});
+document.getElementById('nextBtn').addEventListener('click', () => {
+  currentDay = Math.min(365, currentDay + 1);
+  renderDay(currentDay);
+});
+document.getElementById('todayBtn').addEventListener('click', () => {
+  currentDay = getDayOfYear();
+  renderDay(currentDay);
+});
+
+/************************************************************************
+ * Initial render
+ ************************************************************************/
+renderDay(currentDay);
+
+</script>
+</body>
+</html>
